@@ -1,0 +1,1 @@
+﻿{"query": "SELECT name, email FROM customers WHERE tier='gold' AND city='Chicago' ORDER BY name"}

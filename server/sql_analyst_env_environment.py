@@ -1,9 +1,5 @@
 """
 SQL Analyst Environment — Core Implementation
-
-An agent receives a database schema + a natural-language business question
-and must write SQL queries to answer it correctly. Rewards partial progress
-at every step so the agent can iteratively improve its query.
 """
 
 import os
@@ -26,54 +22,40 @@ except ImportError:
     from tasks import TASKS, Task, build_db
     from grader import grade
 
-
-DONE_THRESHOLD = 0.95   # score >= this ends episode as success
-STEP_DECAY     = 0.05   # reward multiplier decreases per step
-DEFAULT_TASK   = os.getenv("SQL_ENV_TASK", "simple_select")
+DONE_THRESHOLD = 0.95
+STEP_DECAY     = 0.05
 
 
 class SqlAnalystEnvironment(Environment):
-    """
-    SQL Analyst environment for evaluating Text-to-SQL agents.
-
-    The agent receives a schema, sample data, and a business question.
-    It submits SQL queries and receives partial-credit rewards based on
-    how closely its result matches the reference answer.
-
-    Supports 4 tasks of increasing difficulty:
-      - simple_select   (easy)       SELECT + WHERE + ORDER BY
-      - aggregate_join  (medium)     JOIN + GROUP BY + SUM
-      - window_function (hard)       CTE + RANK() OVER PARTITION BY
-      - mom_growth      (very_hard)  LAG() + STRFTIME + CASE WHEN
-    """
+    """SQL Analyst environment for evaluating Text-to-SQL agents."""
 
     SUPPORTS_CONCURRENT_SESSIONS: bool = True
 
     def __init__(self):
-        self._task: Task = TASKS[DEFAULT_TASK]
         self._conn: Optional[sqlite3.Connection] = None
+        self._task: Optional[Task] = None
         self._step_number: int = 0
         self._done: bool = False
         self._best_score: float = 0.0
         self._last_obs: Optional[SqlAnalystObservation] = None
         self._state = State(episode_id=str(uuid4()), step_count=0)
 
-    # ── OpenEnv interface ────────────────────────────────────────────────────
+    def _get_task(self) -> Task:
+        task_id = os.getenv("SQL_ENV_TASK", "simple_select")
+        return TASKS.get(task_id, TASKS["simple_select"])
 
     def reset(self) -> SqlAnalystObservation:
-        """Reset episode: rebuild DB, clear state, return initial observation."""
+        self._task = self._get_task()
         if self._conn:
             try:
                 self._conn.close()
             except Exception:
                 pass
-
-        self._conn       = build_db(self._task)
+        self._conn        = build_db(self._task)
         self._step_number = 0
         self._done        = False
         self._best_score  = 0.0
         self._state       = State(episode_id=str(uuid4()), step_count=0)
-
         obs = SqlAnalystObservation(
             task_id=self._task.task_id,
             difficulty=self._task.difficulty,
@@ -89,27 +71,30 @@ class SqlAnalystEnvironment(Environment):
         return obs
 
     def step(self, action: SqlAnalystAction) -> SqlAnalystObservation:
-        """Execute the agent's SQL query and return scored observation."""
+        """Called by openenv framework (WebSocket path)."""
+        return self.step_with_query(action.query)
+
+    def step_with_query(self, query: str) -> SqlAnalystObservation:
+        """Called directly by our HTTP /step endpoint."""
+        if self._task is None:
+            self.reset()
         if self._done:
-            # Return last obs unchanged — episode already ended
             return self._last_obs
 
-        self._step_number     += 1
+        self._step_number      += 1
         self._state.step_count += 1
 
-        result  = grade(self._conn, action.query.strip(), self._task.expected_query)
+        result  = grade(self._conn, query.strip(), self._task.expected_query)
         score   = result["score"]
         error   = result["error"]
         preview = result["result_preview"]
 
-        # Reward: score × decay − error_penalty (floor 0)
         decay  = max(0.5, 1.0 - STEP_DECAY * (self._step_number - 1))
         reward = max(round(score * decay - (0.10 if error else 0.0), 4), 0.0)
 
         self._best_score = max(self._best_score, score)
         self._done = (score >= DONE_THRESHOLD) or (self._step_number >= self._task.max_steps)
 
-        # Progressive hint after step 3 if still struggling
         hint: Optional[str] = None
         if self._step_number >= 3 and score < 0.5 and self._task.hints:
             idx  = min(self._step_number - 3, len(self._task.hints) - 1)
@@ -121,7 +106,7 @@ class SqlAnalystEnvironment(Environment):
             schema_description=self._task.schema_description,
             question=self._task.question,
             sample_data=self._last_obs.sample_data if self._last_obs else None,
-            last_query=action.query.strip(),
+            last_query=query.strip(),
             last_result=preview,
             last_error=error,
             last_score=score,
@@ -138,10 +123,7 @@ class SqlAnalystEnvironment(Environment):
     def state(self) -> State:
         return self._state
 
-    # ── Helpers ──────────────────────────────────────────────────────────────
-
     def _get_sample(self) -> Optional[str]:
-        """Return a formatted sample of the task data for the agent."""
         try:
             cur  = self._conn.cursor()
             cur.execute(self._task.sample_data_sql)
