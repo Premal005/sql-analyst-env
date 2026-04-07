@@ -119,23 +119,44 @@ def log_start(task: str, model: str) -> None:
     print(f"[START] task={task} env={BENCHMARK} model={model}", flush=True)
 
 
+# def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
+#     action_oneline = str(action).replace("\n", " ").replace("\r", "").strip()
+#     err_val = str(error).replace("\n", " ") if error else "null"
+#     print(
+#         f"[STEP] step={step} action={action_oneline!r} "
+#         f"reward={reward:.2f} done={str(done).lower()} error={err_val}",
+#         flush=True,
+#     )
+
 def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
     action_oneline = str(action).replace("\n", " ").replace("\r", "").strip()
     err_val = str(error).replace("\n", " ") if error else "null"
+
+    safe_reward = min(reward, 0.998)
+
     print(
         f"[STEP] step={step} action={action_oneline!r} "
-        f"reward={reward:.2f} done={str(done).lower()} error={err_val}",
+        f"reward={safe_reward:.3f} done={str(done).lower()} error={err_val}",
         flush=True,
     )
 
 
+# def log_end(success: bool, steps: int, rewards: List[float]) -> None:
+#     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+#     print(
+#         f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}",
+#         flush=True,
+#     )
+
+
 def log_end(success: bool, steps: int, rewards: List[float]) -> None:
-    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+    safe_rewards = [min(r, 0.998) for r in rewards]
+    rewards_str = ",".join(f"{r:.3f}" for r in safe_rewards)
+
     print(
         f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}",
         flush=True,
     )
-
 
 # ── LLM call ─────────────────────────────────────────────────────────────────
 
