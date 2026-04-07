@@ -57,7 +57,7 @@ def grade(conn: sqlite3.Connection, agent_query: str, expected_query: str) -> Di
 
     if agent_err:
         return {
-            "score": 0.001,
+            "score": 0.01,
             "error": agent_err,
             "result_preview": None,
             "breakdown": {"syntax_error": True},
@@ -87,7 +87,7 @@ def grade(conn: sqlite3.Connection, agent_query: str, expected_query: str) -> Di
 
     raw_score = col_score * 0.25 + row_score * 0.75 + order_bonus
     # Clamp strictly between 0 and 1 (exclusive) — validator rejects 0.0 and 1.0
-    score = round(max(0.001, min(0.998, raw_score)), 4)
+    score = round(max(0.01, min(0.99, raw_score)), 4)
 
     # Result preview
     preview_rows = agent_rows[:10]

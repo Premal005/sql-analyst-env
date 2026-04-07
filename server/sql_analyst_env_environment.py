@@ -67,7 +67,7 @@ class SqlAnalystEnvironment(Environment):
             step_number=0,
             max_steps=self._task.max_steps,
             done=False,
-            reward=0.001,
+            reward=0.01,
         )
         self._last_obs = obs
         return obs
@@ -94,7 +94,7 @@ class SqlAnalystEnvironment(Environment):
         decay      = max(0.5, 1.0 - STEP_DECAY * (self._step_number - 1))
         raw_reward = score * decay - (0.10 if error else 0.0)
         # Clamp strictly between 0 and 1 (exclusive) — validator rejects 0.0 and 1.0
-        reward = round(max(0.001, min(0.998, raw_reward)), 4)
+        reward = round(max(0.01, min(0.99, raw_reward)), 4)
 
         self._best_score = max(self._best_score, score)
         self._done = (score >= DONE_THRESHOLD) or (self._step_number >= self._task.max_steps)

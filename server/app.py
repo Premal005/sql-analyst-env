@@ -83,7 +83,7 @@ def reset(body: ResetRequest = None):
     obs = _env.reset()
     return {
         "observation": obs.model_dump(),
-        "reward": 0.001,
+        "reward": 0.01,
         "done": False,
     }
 
@@ -95,7 +95,7 @@ def step(body: StepRequest):
         raise HTTPException(400, "Call /reset first.")
     try:
         obs = _env.step_with_query(body.query)
-        reward = round(max(0.001, min(0.998, float(obs.reward))), 4)
+        reward = round(max(0.01, min(0.99, float(obs.reward))), 4)
         return {
             "observation": obs.model_dump(),
             "reward": reward,
