@@ -126,17 +126,17 @@ def log_start(task: str, model: str) -> None:
 #         f"[STEP] step={step} action={action_oneline!r} "
 #         f"reward={reward:.2f} done={str(done).lower()} error={err_val}",
 #         flush=True,
-#     )
+#     )q    
 
 def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
     action_oneline = str(action).replace("\n", " ").replace("\r", "").strip()
     err_val = str(error).replace("\n", " ") if error else "null"
 
-    safe_reward = min(reward, 0.998)
+    safe_reward = min(reward, 0.99)
 
     print(
-        f"[STEP] step={step} action={action_oneline!r} "
-        f"reward={safe_reward:.3f} done={str(done).lower()} error={err_val}",
+        f"[STEP] step={step} action={action_oneline} "
+        f"reward={safe_reward:.2f} done={str(done).lower()} error={err_val}",
         flush=True,
     )
 
@@ -149,15 +149,17 @@ def log_step(step: int, action: str, reward: float, done: bool, error: Optional[
 #     )
 
 
-def log_end(success: bool, steps: int, rewards: List[float]) -> None:
-    safe_rewards = [min(r, 0.998) for r in rewards]
-    rewards_str = ",".join(f"{r:.3f}" for r in safe_rewards)
+def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
+    safe_rewards = [min(r, 0.99) for r in rewards]
+    rewards_str = ",".join(f"{r:.2f}" for r in safe_rewards)
+
+    safe_score = min(score, 0.99)
 
     print(
-        f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}",
+        f"[END] success={str(success).lower()} steps={steps} "
+        f"score={safe_score:.2f} rewards={rewards_str}",
         flush=True,
     )
-
 # ── LLM call ─────────────────────────────────────────────────────────────────
 
 SYSTEM_PROMPT = textwrap.dedent("""
@@ -259,7 +261,7 @@ def run_episode(task_id: str, client: OpenAI) -> float:
 
     finally:
         # Always emit [END] — even on exception
-        log_end(success=success, steps=steps_taken, rewards=rewards)
+        log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
     return score
 
